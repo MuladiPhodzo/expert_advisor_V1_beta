@@ -8,8 +8,10 @@ import MetaTrader5 as mt5
  
 # connect to MetaTrader 5
 if not mt5.initialize():
-    print("initialize() failed")
+    print("initialize() failed, error code =", mt5.last_error())
     mt5.shutdown()
+    exit()
+
  
 # request connection status and parameters
 print(mt5.terminal_info())
