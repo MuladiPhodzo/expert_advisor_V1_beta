@@ -6,27 +6,40 @@ from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 import MetaTrader5 as mt5
 
-# connect to MetaTrader 5
+
+symbol = "USDJPY, USDCHF, USDCAD, USDJPY"
 if not mt5.initialize():
     print("initialize() failed, error code =", mt5.last_error())
     mt5.shutdown()
     exit()
  
 # request connection status and parameters
-print(mt5.terminal_info())
+print("terminal.info: ", mt5.terminal_info())
 # get data on MetaTrader 5 version
-print(mt5.version())
- 
+print("version: ",mt5.version())
+
+symbols = mt5.symbols_get()
+print('Symbols: ', symbols)
+available_symbols = [s.name for s in symbols]
+if symbol not in available_symbols:
+    print(f"Symbol {symbol} is not available. Check if it's enabled in Market Watch.")
+    mt5.shutdown()
+    exit()
 # request 1000 ticks from EURAUD
-euraud_ticks = mt5.copy_ticks_from("EURAUD", datetime(2020,1,28,13), 1000, mt5.COPY_TICKS_ALL)
+euraud_ticks = mt5.copy_ticks_from("USDJPY", datetime(2020,1,28,13), 1000, mt5.COPY_TICKS_ALL)
+if euraud_ticks is None:
+    print("Failed to retrieve USDJPY ticks, error code:", mt5.last_error())
+else:
+    print('euraud_ticks(', len(euraud_ticks), ')')
+    for val in euraud_ticks[:10]: print(val)
 # request ticks from AUDUSD within 2019.04.01 13:00 - 2019.04.02 13:00
-audusd_ticks = mt5.copy_ticks_range("AUDUSD", datetime(2020,1,27,13), datetime(2020,1,28,13), mt5.COPY_TICKS_ALL)
+audusd_ticks = mt5.copy_ticks_range("AUDUSD", datetime(2024,1,27,13), datetime(2024,1,28,13), mt5.COPY_TICKS_ALL)
  
 # get bars from different symbols in a number of ways
-eurusd_rates = mt5.copy_rates_from("EURUSD", mt5.TIMEFRAME_M1, datetime(2020,1,28,13), 1000)
-eurgbp_rates = mt5.copy_rates_from_pos("EURGBP", mt5.TIMEFRAME_M1, 0, 1000)
-eurcad_rates = mt5.copy_rates_range("EURCAD", mt5.TIMEFRAME_M1, datetime(2020,1,27,13), datetime(2020,1,28,13))
- 
+eurusd_rates = mt5.copy_rates_from("USDEUR", mt5.TIMEFRAME_M1, datetime(2020,1,28,13), 1000)
+eurgbp_rates = mt5.copy_rates_from_pos("USDCHF", mt5.TIMEFRAME_M1, 0, 1000)
+eurcad_rates = mt5.copy_rates_range("USDCAD", mt5.TIMEFRAME_M1, datetime(2020,1,27,13), datetime(2020,1,28,13))
+print
 # shut down connection to MetaTrader 5
 mt5.shutdown()
  
