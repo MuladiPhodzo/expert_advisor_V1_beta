@@ -4,6 +4,7 @@ import pandas as pd
 from pandas.plotting import register_matplotlib_converters
 import MetaTrader5 as mt5
 import MovingAverage as MA
+import os
 
 register_matplotlib_converters()
 
@@ -11,6 +12,7 @@ register_matplotlib_converters()
 class MetaTrader5Client:
     def __init__(self, symbols):
         self.symbols = symbols
+        self.Ratesdata = None
         self.account_info = None
         self.terminal_info = None
 
@@ -48,17 +50,17 @@ class MetaTrader5Client:
         if rates is None:
             print(f"Failed to retrieve {symbol} rates, error code:", mt5.last_error())
        
-        df = pd.DataFrame(rates)
-        df.to_csv("rates_data.csv", index=False)
+        self.Ratesdata = pd.DataFrame(rates)
+        self.Ratesdata.to_csv("rates_data.csv", index=False)
         return rates
 
     def get_rates_range(self, symbol, timeframe, start_time, end_time):
         rates = mt5.copy_rates_range(symbol, timeframe, start_time, end_time)
         if rates is None:
-            print(f"Failed to retrieve {symbol} rates, error code:", mt5.last_error())
+            print(f"Failed to retrieve {symbol} rates range, error code:", mt5.last_error())
         
-        df = pd.DataFrame(rates)
-        df.to_csv("rates_data.csv", index=False)
+        self.Ratesdata = pd.DataFrame(rates)
+        self.Ratesdata.to_csv("rates_data.csv", index=False)
         return rates
 
     def shutdown(self):
@@ -79,13 +81,26 @@ class DataPlotter:
         plt.title(title)
         plt.show()
 
+    @staticmethod
+    def plot_rates(rates, title):
+        if rates is None or len(rates) == 0:
+            print("No data to plot.")
+            return
+        rates_frame = pd.DataFrame(rates)
+        rates_frame['time'] = pd.to_datetime(rates_frame['time'], unit='s')
+        plt.plot(rates_frame['time'], rates_frame['close'], label='close')
+        plt.title(title)
+        plt.legend()
+        plt.show()
 
 if __name__ == "__main__":
     # Initialize client and symbols
     symbols = ["USDJPY", "USDCHF", "USDCAD", "USDZAR", "EURUSD"]
+    
     client = MetaTrader5Client(symbols)
-    rates_data = pd.read_csv("rates_data.csv")
-    strategy = MA.MovingAverageCrossover(data= rates_data,fast_period=50, slow_period=200)
+    file_path = "rates_data.csv"
+    
+    strategy = MA.MovingAverageCrossover(data=client.Ratesdata, fast_period=50, slow_period=200)
 
     if not client.initialize():
         exit()
@@ -104,20 +119,25 @@ if __name__ == "__main__":
     usd_chf_rates = client.get_rates_from("USDCHF", mt5.TIMEFRAME_M1, datetime.now(), 1000)
     usd_cad_rates = client.get_rates_range("USDCAD", mt5.TIMEFRAME_M1, datetime(2024, 11, 27, 13), datetime(2024, 11, 28, 13))
 
+    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+        print("reading rates data from file............")
+        rates_data = pd.read_csv(file_path)
+        print("data length: ", len(rates_data))
+        client.Ratesdata = rates_data
+        print( client.Ratesdata.head())
+        print("data: ", client.Ratesdata.columns)
+    else:
+        print(f"The file '{file_path}' is either missing or empty.")
+        
     # Plot data
-    print("Plotting USDJPY ticks...")
-    DataPlotter.plot_ticks(usd_jpy_ticks, "USDJPY Ticks")
+    print("Plotting......")
+    DataPlotter.plot_rates(usd_chf_rates, "USDCHF Rates")
     for symbol in symbols:
         print(f"Plotting {symbol} rates...")
         rates = client.get_rates_from(symbol, mt5.TIMEFRAME_M1, datetime.now(), 1000)
         strategy.run_moving_average_strategy(symbol, mt5.TIMEFRAME_M15, datetime(2024, 11, 28, 13), 1000)
   
         if rates is not None:
-            rates_frame = pd.DataFrame(rates)
-            rates_frame['time'] = pd.to_datetime(rates_frame['time'], unit='s')
-            plt.plot(rates_frame['time'], rates_frame['close'], label='close')
-            plt.title(f"{symbol} Rates")
-            plt.legend()
-            plt.show()
+           DataPlotter.plot_rates(rates, f"{symbol} Rates")
       # Shutdown client
     client.shutdown()

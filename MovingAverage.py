@@ -6,7 +6,7 @@ import MetaTrader5 as mt5
 
 class MovingAverageCrossover:
     
-    mt = adv.MetaTrader5Client()
+    mt = adv.mt5
     def __init__(self, data, fast_period=50, slow_period=200):
         """
         Initialize the strategy with data and parameters.
@@ -27,8 +27,10 @@ class MovingAverageCrossover:
         return rates
     def calculate_moving_averages(self):
         """Calculate the fast and slow moving averages."""
-        self.data['Fast_MA'] = self.data['Close'].rolling(window=self.fast_period).mean()
-        self.data['Slow_MA'] = self.data['Close'].rolling(window=self.slow_period).mean()
+        if 'close' not in self.data.columns:
+            raise ValueError("'Close' column is missing in the data.")
+        self.data['Fast_MA'] = self.data['close'].rolling(window=self.fast_period).mean()
+        self.data['Slow_MA'] = self.data['close'].rolling(window=self.slow_period).mean()
 
     def generate_signals(self):
         """Generate buy and sell signals based on moving average crossover."""
@@ -43,7 +45,7 @@ class MovingAverageCrossover:
         :return: DataFrame containing backtesting results.
         """
         self.data['Position'] = self.data['Signal'].shift(1)  # Avoid lookahead bias
-        self.data['Market_Returns'] = self.data['Close'].pct_change()
+        self.data['Market_Returns'] = self.data['close'].pct_change()
         self.data['Strategy_Returns'] = self.data['Market_Returns'] * self.data['Position']
         self.data['Cumulative_Market_Returns'] = (1 + self.data['Market_Returns']).cumprod()
         self.data['Cumulative_Strategy_Returns'] = (1 + self.data['Strategy_Returns']).cumprod()
@@ -74,7 +76,7 @@ class MovingAverageCrossover:
         :param slow_period: Slow moving average period.
         """
         # Fetch data
-        rates = mt5.get_rates_from(symbol, timeframe, start_time, count)
+        rates = self.get_rates_from(symbol, timeframe, start_time, count)
         if rates is None:
             print(f"Failed to retrieve data for {symbol}.")
             return None
