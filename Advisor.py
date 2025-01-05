@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pandas.plotting import register_matplotlib_converters
 import MetaTrader5 as mt5
+import MovingAverage as MA
 
 register_matplotlib_converters()
 
@@ -46,12 +47,18 @@ class MetaTrader5Client:
         rates = mt5.copy_rates_from(symbol, timeframe, start_time, count)
         if rates is None:
             print(f"Failed to retrieve {symbol} rates, error code:", mt5.last_error())
+       
+        df = pd.DataFrame(rates)
+        df.to_csv("rates_data.csv", index=False)
         return rates
 
     def get_rates_range(self, symbol, timeframe, start_time, end_time):
         rates = mt5.copy_rates_range(symbol, timeframe, start_time, end_time)
         if rates is None:
             print(f"Failed to retrieve {symbol} rates, error code:", mt5.last_error())
+        
+        df = pd.DataFrame(rates)
+        df.to_csv("rates_data.csv", index=False)
         return rates
 
     def shutdown(self):
@@ -77,6 +84,8 @@ if __name__ == "__main__":
     # Initialize client and symbols
     symbols = ["USDJPY", "USDCHF", "USDCAD", "USDZAR", "EURUSD"]
     client = MetaTrader5Client(symbols)
+    rates_data = pd.read_csv("rates_data.csv")
+    strategy = MA.MovingAverageCrossover(data= rates_data,fast_period=50, slow_period=200)
 
     if not client.initialize():
         exit()
@@ -91,13 +100,24 @@ if __name__ == "__main__":
     # Fetch data
     usd_jpy_ticks = client.get_ticks_from("USDJPY", datetime(2024, 1, 28, 13), 1000)
     aud_usd_ticks = client.get_ticks_range("AUDUSD", datetime(2024, 1, 27, 13), datetime(2024, 1, 29, 13))
-    eur_usd_rates = client.get_rates_from("EURUSD", mt5.TIMEFRAME_M1, datetime(2024, 11, 28, 13), 1000)
+    eur_usd_rates = client.get_rates_from("EURUSD", mt5.TIMEFRAME_M15, datetime(2024, 11, 28, 13), 1000)
     usd_chf_rates = client.get_rates_from("USDCHF", mt5.TIMEFRAME_M1, datetime.now(), 1000)
     usd_cad_rates = client.get_rates_range("USDCAD", mt5.TIMEFRAME_M1, datetime(2024, 11, 27, 13), datetime(2024, 11, 28, 13))
 
     # Plot data
     print("Plotting USDJPY ticks...")
     DataPlotter.plot_ticks(usd_jpy_ticks, "USDJPY Ticks")
-
-    # Shutdown client
+    for symbol in symbols:
+        print(f"Plotting {symbol} rates...")
+        rates = client.get_rates_from(symbol, mt5.TIMEFRAME_M1, datetime.now(), 1000)
+        strategy.run_moving_average_strategy(symbol, mt5.TIMEFRAME_M15, datetime(2024, 11, 28, 13), 1000)
+  
+        if rates is not None:
+            rates_frame = pd.DataFrame(rates)
+            rates_frame['time'] = pd.to_datetime(rates_frame['time'], unit='s')
+            plt.plot(rates_frame['time'], rates_frame['close'], label='close')
+            plt.title(f"{symbol} Rates")
+            plt.legend()
+            plt.show()
+      # Shutdown client
     client.shutdown()
