@@ -1,6 +1,5 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import Advisor as adv
 import MetaTrader5 as mt5
 import os
 import numpy as np
@@ -8,7 +7,7 @@ import TradesAlgo as Trades
 
 
 class MovingAverageCrossover:
-	mt = adv.mt5
+	
 
 	def __init__(self, data, fast_period=50, slow_period=200):
 		"""
@@ -48,10 +47,11 @@ class MovingAverageCrossover:
 		self.data['Signal'] = np.where(self.data['Fast_MA'] < self.data['Slow_MA'], -1, 0)
 		self.data['Crossover'] = self.data['Signal'].diff()
 		# Remove unwanted columns
-		self.data = self.data.drop(columns=['Crossover'])
+		self.data = self.data.drop(columns=['tick_volume'])
 
 		# Remove rows with missing or empty values
 		self.data = self.data.dropna()
+		#print(self.data[['Signal', 'Crossover']].tail())
 		print( self.data)
 		print("Signals and crossovers generated.")
 
@@ -60,8 +60,8 @@ class MovingAverageCrossover:
 		if 'Crossover' not in self.data.columns:
 				raise ValueError("Crossover data is missing. Please run 'generate_signals()' first.")
 		
-		buy_signals = self.data[self.data['Crossover'] == 1]
-		sell_signals = self.data[self.data['Crossover'] == -1]
+		buy_signals = self.data[self.data['Signal'] == 1]
+		sell_signals = self.data[self.data['Signal'] == -1]
 
 		entry_levels = pd.concat([
 				buy_signals[['time', 'close']].rename(columns={'close': 'Buy_Level'}),
@@ -158,6 +158,9 @@ class MovingAverageCrossover:
 		strategy.generate_signals()
 		strategy.identify_entry_levels()
 		trades = Trades.MT5TradingAlgorithm(symbol, market_Bias=self.data['Signal'])
+		df = pd.DataFrame(self.data)
+		df['time'] = pd.to_datetime(df['time'])
+		df.set_index('time', inplace=True)
 		try:
 			trades.execute_trades(df)
 		finally:

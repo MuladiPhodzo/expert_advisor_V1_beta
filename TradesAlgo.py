@@ -3,18 +3,19 @@ import pandas as pd
 import time
 
 class MT5TradingAlgorithm:
-    def __init__(self, symbol, lot_size=0.1, magic_number=1000, market_Bias=int):
+    def __init__(self, data, symbol, lot_size=0.1, magic_number=1000, market_Bias=int):
         """
         Initialize the MT5 trading algorithm.
         :param symbol: The trading symbol (e.g., 'USDJPY').
         :param lot_size: The size of each trade.
         :param magic_number: Unique identifier for this strategy's trades.
         """
+        self.data = data
         self.symbol = symbol
         self.lot_size = lot_size
         self.magic_number = magic_number
         self.current_position = None  # Track 'buy', 'sell', or None
-        self.market_Bias = ma
+        self.market_Bias = None
 
     def place_order(self, action):
         """
