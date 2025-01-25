@@ -1,13 +1,13 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import MetaTrader5 as mt5
+import Advisor as adv
 import os
 import numpy as np
 import TradesAlgo as Trades
 
 
 class MovingAverageCrossover:
-	
 
 	def __init__(self, data, fast_period=50, slow_period=200):
 		"""
@@ -24,6 +24,7 @@ class MovingAverageCrossover:
 		self.results = None
 
 	def get_rates_from(self, symbol, timeframe, start_time, count):
+		
 		"""Fetch historical rates from MetaTrader 5."""
 		rates = mt5.copy_rates_from(symbol, timeframe, start_time, count)
 		if rates is None:
@@ -47,7 +48,7 @@ class MovingAverageCrossover:
 		self.data['Signal'] = np.where(self.data['Fast_MA'] < self.data['Slow_MA'], -1, 0)
 		self.data['Crossover'] = self.data['Signal'].diff()
 		# Remove unwanted columns
-		self.data = self.data.drop(columns=['tick_volume'])
+		self.data = self.data.drop(columns=['tick_volume', 'spread', 'real_volume'])
 
 		# Remove rows with missing or empty values
 		self.data = self.data.dropna()
@@ -59,9 +60,10 @@ class MovingAverageCrossover:
 		"""Identify entry levels (buy and sell) based on crossovers."""
 		if 'Crossover' not in self.data.columns:
 				raise ValueError("Crossover data is missing. Please run 'generate_signals()' first.")
-		
-		buy_signals = self.data[self.data['Signal'] == 1]
-		sell_signals = self.data[self.data['Signal'] == -1]
+
+		data_with_time = self.data.reset_index()
+		buy_signals = data_with_time[data_with_time['Signal'] == 1]
+		sell_signals = data_with_time[data_with_time['Signal'] == -1]
 
 		entry_levels = pd.concat([
 				buy_signals[['time', 'close']].rename(columns={'close': 'Buy_Level'}),
@@ -113,24 +115,33 @@ class MovingAverageCrossover:
 		plt.show()
 			
 	def plot_charts(self):
-		if self.data['Close'] is None:
-				raise ValueError("No Close data available")
+		if 'close' not in self.data.columns or self.data['close'].empty:
+			raise ValueError("No Close data available")
 		
-		plt.figure(figsize=(12,6)) 
-		plt.plot(self.data['Close'].index, self.data['Çlose'], label="Close", color='black')
-		plt.plot(self.data.index, self.data['Fast_MA'], labe=self.fast_period, colo='blue')
-		plt.plot(self.data.index, self.data['Slow_MA'], label=self.slow_period, color='red')
-		plt.plot(self.results.loc[self.results['Crossover']==2].index, 
-							self.results['Fast_MA'][self.results['Crossover']==2], '^',
-							color='g',
-							markersize = 12)
-		plt.plot(self.results.loc[self.results['Crossover']==-2].index, 
-							self.results['Fast_MA'][self.results['Crossover']==-2], 'v',
-							color='r',
-							markersize = 12)
-		plt.title('Moving Average Crossover signal')
-		plt.legend(loc=2)
+		plt.figure(figsize=(12, 6))
+
+		# Plot the close price
+		plt.plot(self.data.index, self.data['close'], label="Close", color='black')
+
+		# Plot the fast and slow moving averages
+		plt.plot(self.data.index, self.data['Fast_MA'], label=f"Fast MA ({self.fast_period})", color='blue')
+		plt.plot(self.data.index, self.data['Slow_MA'], label=f"Slow MA ({self.slow_period})", color='red')
+
+		# Plot buy signals (crossover == 2)
+		plt.plot(self.results.loc[self.results['Crossover'] == 2].index, 
+				self.results.loc[self.results['Crossover'] == 2, 'Fast_MA'], 
+				'^', color='green', markersize=12, label="Buy Signal")
+
+		# Plot sell signals (crossover == -2)
+		plt.plot(self.results.loc[self.results['Crossover'] == -2].index, 
+				self.results.loc[self.results['Crossover'] == -2, 'Fast_MA'], 
+				'v', color='red', markersize=12, label="Sell Signal")
+
+		# Add title and legend
+		plt.title('Moving Average Crossover Signals')
+		plt.legend(loc='upper left')
 		plt.show()
+
 			
 	def run_moving_average_strategy(self, symbol, timeframe, start_time, count):
 		"""
@@ -157,14 +168,6 @@ class MovingAverageCrossover:
 		strategy.calculate_moving_averages()
 		strategy.generate_signals()
 		strategy.identify_entry_levels()
-		trades = Trades.MT5TradingAlgorithm(symbol, market_Bias=self.data['Signal'])
-		df = pd.DataFrame(self.data)
-		df['time'] = pd.to_datetime(df['time'])
-		df.set_index('time', inplace=True)
-		try:
-			trades.execute_trades(df)
-		finally:
-			trades.close()
 		strategy.save_signals_to_csv()
 		results = strategy.backtest_strategy()
 

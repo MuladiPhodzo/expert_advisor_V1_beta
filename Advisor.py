@@ -52,7 +52,7 @@ class MetaTrader5Client:
 				print(f"Failed to retrieve {symbol} rates, error code:", mt5.last_error())
 		
 		self.Ratesdata = pd.DataFrame(rates)
-		self.Ratesdata.to_csv("rates_data.csv", index=False)
+		self.Ratesdata.to_csv("Logs/rates_data.csv", index=False)
 		return rates
 
 	def get_rates_range(self, symbol, timeframe, start_time, end_time):
