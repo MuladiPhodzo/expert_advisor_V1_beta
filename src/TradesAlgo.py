@@ -75,7 +75,7 @@ class MT5TradingAlgorithm:
         print("Disconnected from MetaTrader 5.")
 
 # Example usage
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     # Sample data (replace with your DataFrame)
     data = {
         'time': [
@@ -95,3 +95,4 @@ if __name__ == "__main__":
         mt5_algo.execute_trades(df)
     finally:
         mt5_algo.close()
+'''

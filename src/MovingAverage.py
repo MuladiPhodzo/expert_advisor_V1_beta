@@ -9,7 +9,7 @@ import TradesAlgo as Trades
 
 class MovingAverageCrossover:
 
-	def __init__(self, data, fast_period=50, slow_period=200):
+	def __init__(self,  symbol, data, fast_period=50, slow_period=200):
 		"""
 		Initialize the strategy with data and parameters.
 		
@@ -22,6 +22,7 @@ class MovingAverageCrossover:
 		self.slow_period = slow_period
 		self.signals = None
 		self.results = None
+		self.symbol = symbol
 
 	def get_rates_from(self, symbol, timeframe, start_time, count):
 		
@@ -46,6 +47,7 @@ class MovingAverageCrossover:
 		
 		self.data['Signal'] = np.where(self.data['Fast_MA'] > self.data['Slow_MA'], 1, 0)
 		self.data['Signal'] = np.where(self.data['Fast_MA'] < self.data['Slow_MA'], -1, 0)
+	
 		self.data['Crossover'] = self.data['Signal'].diff()
 		# Remove unwanted columns
 		self.data = self.data.drop(columns=['tick_volume', 'spread', 'real_volume'])
@@ -55,7 +57,17 @@ class MovingAverageCrossover:
 		#print(self.data[['Signal', 'Crossover']].tail())
 		print( self.data)
 		print("Signals and crossovers generated.")
+	
+	def toCSVFile(self, rates):
+			# Convert rates to DataFrame
+			self.data = pd.DataFrame(rates)
+			file_path = f'Logs\Rates\{self.symbol}_rates.csv'
+			# Ensure the directory exists before writing
+			os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
+			# Write DataFrame to CSV, creating the file if it doesn’t exist
+			self.data.to_csv(file_path, index=True, mode='w', header=True)
+	 
 	def identify_entry_levels(self):
 		"""Identify entry levels (buy and sell) based on crossovers."""
 		if 'Crossover' not in self.data.columns:
@@ -92,13 +104,17 @@ class MovingAverageCrossover:
 
 	def backtest_strategy(self):
 		"""Backtest the strategy by calculating strategy returns."""
+		print("data", self.data)
+		self.toCSVFile(self.data)
 		self.data['Position'] = self.data['Signal'].shift(1)  # Avoid lookahead bias
 		self.data['Market_Returns'] = self.data['close'].pct_change()
 		self.data['Strategy_Returns'] = self.data['Market_Returns'] * self.data['Position']
 		self.data['Cumulative_Market_Returns'] = (1 + self.data['Market_Returns']).cumprod()
 		self.data['Cumulative_Strategy_Returns'] = (1 + self.data['Strategy_Returns']).cumprod()
-		self.results = self.data
-		print("Results: ", self.results)
+		self.results = self.data.dropna().copy()  # Corrected version
+
+		
+		print("data after backtest", self.data)
 		print("Backtest completed.")
 		return self.results
 
@@ -115,9 +131,15 @@ class MovingAverageCrossover:
 		plt.show()
 			
 	def plot_charts(self):
-		if 'close' not in self.data.columns or self.data['close'].empty:
-			raise ValueError("No Close data available")
+		if self.results is None:
+				raise ValueError("Error: `self.results` is None. Run `backtest_strategy()` before plotting.")
 		
+		if 'Crossover' not in self.results.columns:
+				raise ValueError("Error: 'Crossover' column is missing in `self.results`. Check data processing.")
+
+		if 'close' not in self.data.columns or self.data['close'].empty:
+				raise ValueError("No Close data available")
+
 		plt.figure(figsize=(12, 6))
 
 		# Plot the close price
@@ -129,18 +151,19 @@ class MovingAverageCrossover:
 
 		# Plot buy signals (crossover == 2)
 		plt.plot(self.results.loc[self.results['Crossover'] == 2].index, 
-				self.results.loc[self.results['Crossover'] == 2, 'Fast_MA'], 
-				'^', color='green', markersize=12, label="Buy Signal")
+						self.results.loc[self.results['Crossover'] == 2, 'Fast_MA'], 
+						'^', color='green', markersize=12, label="Buy Signal")
 
 		# Plot sell signals (crossover == -2)
 		plt.plot(self.results.loc[self.results['Crossover'] == -2].index, 
-				self.results.loc[self.results['Crossover'] == -2, 'Fast_MA'], 
-				'v', color='red', markersize=12, label="Sell Signal")
+						self.results.loc[self.results['Crossover'] == -2, 'Fast_MA'], 
+						'v', color='red', markersize=12, label="Sell Signal")
 
 		# Add title and legend
 		plt.title('Moving Average Crossover Signals')
 		plt.legend(loc='upper left')
 		plt.show()
+
 
 			
 	def run_moving_average_strategy(self, symbol, timeframe, start_time, count):
@@ -153,7 +176,9 @@ class MovingAverageCrossover:
 		:param count: Number of bars to fetch.
 		"""
 		# Fetch data
-		rates = self.get_rates_from(symbol, timeframe, start_time, count)
+		rates = self.data
+		print(rates)
+		
 		if rates is None:
 				print(f"Failed to retrieve data for {symbol}.")
 				return None
@@ -164,7 +189,7 @@ class MovingAverageCrossover:
 		rates_frame.set_index('time', inplace=True)
 
 		# Apply the strategy
-		strategy = MovingAverageCrossover(rates_frame, self.fast_period, self.slow_period)
+		strategy = MovingAverageCrossover( self.symbol ,rates_frame, self.fast_period, self.slow_period)
 		strategy.calculate_moving_averages()
 		strategy.generate_signals()
 		strategy.identify_entry_levels()
